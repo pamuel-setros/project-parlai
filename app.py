@@ -1,9 +1,10 @@
+import requests
 import streamlit as st
 import pandas as pd
-from nba_api.stats.endpoints import leaguegamefinder
 from nba_api.stats.static import teams
 from transformers import pipeline
-import requests # Make sure this is imported at the top
+from db_connect import get_supabase
+
 
 # Map full team names to their subreddit names
 TEAM_SUBREDDITS = {
@@ -48,14 +49,24 @@ def load_sentiment_pipeline():
     """Loads the heavy NLP model only once."""
     return pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
 
-@st.cache_data
-def get_recent_games(team_id):
-    """Pulls the last 10 games for a specific team."""
-    gamefinder = leaguegamefinder.LeagueGameFinder(team_id_nullable=team_id)
-    games = gamefinder.get_data_frames()[0]
-    # Filter for this season (approximate logic for MVP) and sort by date
-    games = games.head(10) 
-    return games
+@st.cache_data(ttl=60) # Cache for 1 min so we see live database updates
+def get_recent_games_from_db(team_name):
+    """Queries OUR Supabase database, not the NBA API."""
+    supabase = get_supabase()
+    
+    # Select * from nba_games where team_name = X order by date desc limit 10
+    response = supabase.table("nba_games")\
+        .select("*")\
+        .eq("team_name", team_name)\
+        .order("game_date", desc=True)\
+        .limit(10)\
+        .execute()
+        
+    # Convert back to DataFrame for Streamlit to display
+    data = response.data
+    if data:
+        return pd.DataFrame(data)
+    return pd.DataFrame()
 
 # --- MAIN APP UI ---
 st.title("🏀 ParlAI: The Sentiment-Driven Sports Agent")
@@ -70,21 +81,33 @@ selected_team_obj = [team for team in nba_teams if team['full_name'] == selected
 team_id = selected_team_obj['id']
 
 # 2. COLUMN 1: HARD DATA (The "Quant" Side)
+# 2. COLUMN 1: HARD DATA (The "Quant" Side)
 col1, col2 = st.columns(2)
 
 with col1:
     st.subheader(f"📊 {selected_team_name} Recent Performance")
     
     # Fetch Data
-    with st.spinner('Fetching stats from NBA API...'):
-        df = get_recent_games(team_id)
+    with st.spinner('Fetching stats from Database...'):
+        df = get_recent_games_from_db(selected_team_name)
     
-    # Clean up display
-    display_df = df[['GAME_DATE', 'MATCHUP', 'WL', 'PTS', 'PLUS_MINUS']]
-    st.dataframe(display_df, use_container_width=True)
-    
+    # CRITICAL CHECK: Did we actually find data?
+    if not df.empty:
+        # Clean up display
+        display_df = df[['game_date', 'matchup', 'wl', 'pts', 'plus_minus']]
+        st.dataframe(display_df, use_container_width=True)
+        
+        # Calculate simple momentum
+        wins = display_df[display_df['wl'] == 'W'].shape[0]
+        st.metric(label="Last 10 Games Record", value=f"{wins}-10")
+    else:
+        # Graceful failure if data is missing
+        st.warning(f"No data found for {selected_team_name}!")
+        st.info("💡 Tip: Run 'python nba_dataingest.py' to populate the database.")
+        wins = 0 # Default to 0 so the logic below doesn't break 
+   
     # Calculate simple momentum
-    wins = display_df[display_df['WL'] == 'W'].shape[0]
+    wins = display_df[display_df['wl'] == 'W'].shape[0]
     st.metric(label="Last 10 Games Record", value=f"{wins}-10")
 
 # 3. COLUMN 2: SOFT DATA (The "Vibes" Side)

@@ -46,7 +46,7 @@ st.set_page_config(page_title="ParlAI MVP", layout="wide")
 
 @st.cache_resource
 def load_sentiment_pipeline():
-    """Loads the heavy NLP model only once."""
+    """Loads the heavy NLP model only once. MODEL Distilbert"""
     return pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
 
 @st.cache_data(ttl=60) # Cache for 1 min so we see live database updates

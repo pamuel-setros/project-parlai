@@ -3,6 +3,7 @@ import pandas as pd
 from nba_api.stats.endpoints import leaguegamefinder
 from nba_api.stats.library.http import NBAStatsHTTP
 from db_connect import get_supabase
+from nba_api.stats.static import teams
 
 # --- STEALTH MODE CONFIGURATION ---
 # We must override the default headers to look like a real browser
@@ -22,7 +23,6 @@ def fetch_and_upload_games(team_name="Cleveland Cavaliers"):
     print(f"Fetching TEAM data for {team_name}...")
     
     try:
-        from nba_api.stats.static import teams
         nba_teams = teams.get_teams()
         team = [t for t in nba_teams if t['full_name'] == team_name][0]
         
@@ -55,13 +55,17 @@ def fetch_and_upload_games(team_name="Cleveland Cavaliers"):
         print(f"Error fetching {team_name}: {e}")
 
 # 2. Update Player Props Function
-def fetch_player_stats(team_id):
-    print(f"Fetching PLAYER stats for Team ID {team_id}...")
+def fetch_player_stats(team_name):
+    print(f"Fetching PLAYER stats for {team_name}...")
     
     try:
+        # Find the ID dynamically
+        nba_teams = teams.get_teams()
+        team = [t for t in nba_teams if t['full_name'] == team_name][0]
+
         # Pass headers explicitly
         gamefinder = leaguegamefinder.LeagueGameFinder(
-            team_id_nullable=team_id,
+            team_id_nullable=team['id'],
             player_or_team_abbreviation='P',
             headers=custom_headers,  # <--- The Disguise
             timeout=60
@@ -104,6 +108,6 @@ if __name__ == "__main__":
     time.sleep(5)
     
     # 2. Update Player Props
-    fetch_player_stats("1610612739") # Cavaliers ID
+    fetch_player_stats("Cleveland Cavaliers")
     time.sleep(5)
-    fetch_player_stats("1610612747") # Lakers ID
+    fetch_player_stats("Los Angeles Lakers")

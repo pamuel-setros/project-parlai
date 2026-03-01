@@ -1,0 +1,9 @@
+streamlit
+pandas
+nba_api
+supabase
+python-dotenv
+transformers
+torch
+requests
+groq

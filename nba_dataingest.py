@@ -10,6 +10,22 @@ from nba_api.stats.static import teams
 load_dotenv()
 SCRAPER_API_KEY = os.environ.get("SCRAPER_API_KEY")
 
+# monkey patching requests to disable SSL verification globally (for scraperapi proxy)
+import requests
+import urllib3
+
+# Suppress the red warnings that pop up when you disable SSL
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+old_request = requests.Session.request
+
+def new_request(self, method, url, **kwargs):
+    kwargs['verify'] = False  # <--- FORCES SSL CHECK OFF
+    return old_request(self, method, url, **kwargs)
+
+requests.Session.request = new_request
+
+
 if not SCRAPER_API_KEY:
     print("WARNING: No SCRAPER_API_KEY found in .env file. Requests may be blocked.")
     PROXY = None

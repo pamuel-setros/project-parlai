@@ -1,18 +1,27 @@
 import os
-from groq import Groq
 from dotenv import load_dotenv
 
 # Load variables from .env
 load_dotenv()
 
+# Try to import Groq safely
+try:
+    from groq import Groq
+except ImportError:
+    Groq = None
+
 # Initialize the Groq Client
-client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+api_key = os.environ.get("GROQ_API_KEY")
+client = Groq(api_key=api_key) if (api_key and Groq) else None
 
 def get_betting_recommendation(team_name, stats_df, sentiment_label, live_odds):
     """
     Sends the data, context, and odds to Groq (Llama 3) to get a betting recommendation.
     """
     
+    if not client:
+        return "Error: Groq client not initialized. Check API Key or run 'pip install groq'."
+
     # 1. Format the Data into a string the LLM can read
     stats_string = stats_df.to_string(index=False)
     

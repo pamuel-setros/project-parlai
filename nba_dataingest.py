@@ -1,12 +1,22 @@
+import os
 import time
 import pandas as pd
+from dotenv import load_dotenv
 from nba_api.stats.endpoints import leaguegamefinder
-from nba_api.stats.library.http import NBAStatsHTTP
 from db_connect import get_supabase
 from nba_api.stats.static import teams
 
+# --- LOAD PROXY CONFIGURATION ---
+load_dotenv()
+SCRAPER_API_KEY = os.environ.get("SCRAPER_API_KEY")
+
+if not SCRAPER_API_KEY:
+    print("WARNING: No SCRAPER_API_KEY found in .env file. Requests may be blocked.")
+    PROXY = None
+else:
+    PROXY = f"http://scraperapi:{SCRAPER_API_KEY}@proxy-server.scraperapi.com:8001"
+
 # --- STEALTH MODE CONFIGURATION ---
-# We must override the default headers to look like a real browser
 custom_headers = {
     'Host': 'stats.nba.com',
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
@@ -26,10 +36,11 @@ def fetch_and_upload_games(team_name="Cleveland Cavaliers"):
         nba_teams = teams.get_teams()
         team = [t for t in nba_teams if t['full_name'] == team_name][0]
         
-        # Pass headers explicitly
+        # Pass headers and proxy explicitly
         gamefinder = leaguegamefinder.LeagueGameFinder(
             team_id_nullable=team['id'],
-            headers=custom_headers,  # <--- The Disguise
+            headers=custom_headers,
+            proxy=PROXY,  # <--- The Proxy Bypass
             timeout=60
         )
         
@@ -49,10 +60,10 @@ def fetch_and_upload_games(team_name="Cleveland Cavaliers"):
             
         supabase = get_supabase()
         supabase.table("nba_games").upsert(records).execute()
-        print(f"Successfully uploaded {len(records)} games for {team_name}!")
+        print(f"✅ Successfully uploaded {len(records)} games for {team_name}!")
         
     except Exception as e:
-        print(f"Error fetching {team_name}: {e}")
+        print(f"❌ Error fetching {team_name}: {e}")
 
 # 2. Update Player Props Function
 def fetch_player_stats(team_name):
@@ -63,11 +74,12 @@ def fetch_player_stats(team_name):
         nba_teams = teams.get_teams()
         team = [t for t in nba_teams if t['full_name'] == team_name][0]
 
-        # Pass headers explicitly
+        # Pass headers and proxy explicitly
         gamefinder = leaguegamefinder.LeagueGameFinder(
             team_id_nullable=team['id'],
             player_or_team_abbreviation='P',
-            headers=custom_headers,  # <--- The Disguise
+            headers=custom_headers,
+            proxy=PROXY,  # <--- The Proxy Bypass
             timeout=60
         )
         
@@ -95,19 +107,20 @@ def fetch_player_stats(team_name):
             
         supabase = get_supabase()
         supabase.table("nba_player_logs").upsert(records, on_conflict="game_id, player_id").execute()
-        print(f"✅ Uploaded {len(records)} player logs!")
+        print(f"✅ Uploaded {len(records)} player logs for {team_name}!")
         
     except Exception as e:
-        print(f"Error fetching players: {e}")
+        print(f"❌ Error fetching players for {team_name}: {e}")
 
 if __name__ == "__main__":
-    # 1. Update Team Games
-    fetch_and_upload_games("Cleveland Cavaliers")
-    time.sleep(5) # Increased sleep to 5s to be safer
-    fetch_and_upload_games("Los Angeles Lakers")
-    time.sleep(5)
+    # Add more teams here whenever you're ready
+    TEAMS_TO_PULL = [
+        "Cleveland Cavaliers",
+        "Los Angeles Lakers"
+    ]
     
-    # 2. Update Player Props
-    fetch_player_stats("Cleveland Cavaliers")
-    time.sleep(5)
-    fetch_player_stats("Los Angeles Lakers")
+    for team in TEAMS_TO_PULL:
+        fetch_and_upload_games(team)
+        time.sleep(5) # Give the proxy server a breather
+        fetch_player_stats(team)
+        time.sleep(5)

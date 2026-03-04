@@ -83,7 +83,7 @@ with col1:
         # Graceful failure if data is missing
         st.warning(f"No data found for {selected_team_name}!")
         st.info("💡 Tip: Run 'python nba_dataingest.py' to populate the database.")
-        wins = 0 # Default to 0 so the logic below doesn't break 
+        st.metric(label="Last 10 Games Record", value="N/A")
 
 # 3. COLUMN 2: SOFT DATA (The "Vibes" Side)
 with col2:

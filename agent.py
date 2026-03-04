@@ -23,7 +23,7 @@ def get_betting_recommendation(team_name, stats_df, sentiment_label, live_odds):
         return "Error: Groq client not initialized. Check API Key or run 'pip install groq'."
 
     # 1. Format the Data into a string the LLM can read
-    stats_string = stats_df.to_string(index=False)
+    stats_string = stats_df.to_string(index=False) if not stats_df.empty else "No recent games found."
     
     # 2. Build the Prompt (Retrieval-Augmented Generation)
     prompt = f"""

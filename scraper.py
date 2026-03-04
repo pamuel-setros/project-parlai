@@ -38,18 +38,21 @@ def get_reddit_headlines(team_name):
     Scrapes the top 10 headlines from the team's subreddit.
     """
     subreddit = TEAM_SUBREDDITS.get(team_name, "nba")
-    url = f"https://www.reddit.com/r/{subreddit}/hot.json?limit=10"
+    url = f"https://www.reddit.com/r/{subreddit}/hot.json?limit=50"
     
     headers = {'User-Agent': 'ParlAI-Student-Project-v1.0'}
     
     try:
         response = requests.get(url, headers=headers)
+        if response.status_code != 200:
+            return [f"Error scraping Reddit: Status {response.status_code}"]
+            
         data = response.json()
         
         posts = data['data']['children']
         headlines = [post['data']['title'] for post in posts]
         
-        return " ".join(headlines)
+        return headlines
         
     except Exception as e:
-        return f"Error scraping Reddit: {str(e)}"
+        return [f"Error scraping Reddit: {str(e)}"]

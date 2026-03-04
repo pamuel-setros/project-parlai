@@ -1,6 +1,7 @@
 import os
 import requests
 from dotenv import load_dotenv
+from datetime import datetime
 
 # Load the API key
 load_dotenv()
@@ -17,14 +18,12 @@ def get_live_spread(team_name):
     sport = 'basketball_nba'
     regions = 'us'
     markets = 'spreads'
-    bookmakers = 'fanduel' # We can specifically target FanDuel
 
     url = f"https://api.the-odds-api.com/v4/sports/{sport}/odds/"
     params = {
         'apiKey': API_KEY,
         'regions': regions,
         'markets': markets,
-        'bookmakers': bookmakers,
     }
 
     try:
@@ -36,18 +35,41 @@ def get_live_spread(team_name):
         for game in games:
             if team_name in game['home_team'] or team_name in game['away_team']:
                 
+                # Parse the date so we know when the game is
+                commence_time = game.get('commence_time', '')
+                date_label = ""
+                try:
+                    # Parse ISO8601 string (e.g. 2023-10-24T23:30:00Z)
+                    dt = datetime.strptime(commence_time, "%Y-%m-%dT%H:%M:%SZ")
+                    date_label = f" ({dt.strftime('%m/%d')})"
+                except Exception:
+                    pass
+                
                 # Check if FanDuel has lines posted for this game
+                # LOGIC: Try FanDuel first, but fallback to ANY bookmaker if FanDuel is missing
+                target_bookmaker = None
+                
+                # 1. Try to find FanDuel
                 for bookmaker in game.get('bookmakers', []):
                     if bookmaker['key'] == 'fanduel':
-                        for market in bookmaker.get('markets', []):
-                            if market['key'] == 'spreads':
-                                # Find the specific outcome for our team
-                                for outcome in market['outcomes']:
-                                    if outcome['name'] == team_name:
-                                        spread = outcome.get('point')
-                                        return f"Live FanDuel Spread: {team_name} {spread}"
+                        target_bookmaker = bookmaker
+                        break
+                
+                # 2. Fallback: Take the first available bookmaker if FanDuel isn't there
+                if not target_bookmaker and game.get('bookmakers'):
+                    target_bookmaker = game['bookmakers'][0]
+                
+                if target_bookmaker:
+                    book_name = target_bookmaker['title']
+                    for market in target_bookmaker.get('markets', []):
+                        if market['key'] == 'spreads':
+                            for outcome in market['outcomes']:
+                                if outcome['name'] == team_name:
+                                    spread = outcome.get('point')
+                                    spread_fmt = f"+{spread}" if spread > 0 else str(spread)
+                                    return f"{book_name} Spread{date_label}: {team_name} {spread_fmt}"
                                         
-        return f"No live FanDuel spread found for {team_name} today. They might not be playing."
+        return f"No upcoming odds found for {team_name}."
 
     except Exception as e:
         return f"Error fetching odds: {e}"
